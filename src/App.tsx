@@ -1,17 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ColumnMapping {
-  clientCol: string
-  targetCol: string | null
-  confidence: number
-  reason: string
-  status: 'auto' | 'pending' | 'confirmed' | 'skipped'
-  transformation?: string
-}
+import { aiMap, transformData, previewTransform, TRANSFORM_LABELS, type ColumnMapping } from './transforms'
 
 interface ParsedFile {
   headers: string[]
@@ -20,111 +10,6 @@ interface ParsedFile {
 }
 
 type Step = 1 | 2 | 3 | 4 | 5
-
-// ─── Simulated AI Mapping ────────────────────────────────────────────────────
-
-const semanticAliases: Record<string, string[]> = {
-  'Vendor Name': ['supplier', 'vendor', 'company', 'organisation', 'organization', 'firm', 'vendor name', 'vendor_name', 'company name', 'supplier name'],
-  'GST': ['gstin', 'gst', 'gst number', 'gst_number', 'gstin number', 'tax id', 'tax_id', 'vat', 'gst no'],
-  'Phone': ['mobile', 'phone', 'contact', 'contact number', 'mobile number', 'telephone', 'tel', 'phone number', 'cell'],
-  'Email': ['email', 'e-mail', 'email address', 'mail', 'email id'],
-  'City': ['city', 'location', 'town', 'place', 'address city'],
-  'Material Category': ['category', 'material', 'product category', 'item category', 'type', 'goods category', 'material category'],
-}
-
-function normalizeStr(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim()
-}
-
-function similarity(a: string, b: string): number {
-  const na = normalizeStr(a)
-  const nb = normalizeStr(b)
-  if (na === nb) return 1
-  if (na.includes(nb) || nb.includes(na)) return 0.9
-  const aWords = new Set(na.split(' ').filter(Boolean))
-  const bWords = new Set(nb.split(' ').filter(Boolean))
-  const intersection = [...aWords].filter(w => bWords.has(w)).length
-  const union = new Set([...aWords, ...bWords]).size
-  return union === 0 ? 0 : intersection / union
-}
-
-function aiMap(clientHeaders: string[], targetHeaders: string[], sampleRows: Record<string, string>[]): ColumnMapping[] {
-  return clientHeaders.map(clientCol => {
-    let bestTarget: string | null = null
-    let bestScore = 0
-    let bestReason = ''
-
-    for (const targetCol of targetHeaders) {
-      // direct similarity
-      let score = similarity(clientCol, targetCol)
-      let reason = 'Column name similarity'
-
-      // alias lookup
-      const aliases = semanticAliases[targetCol] || []
-      const aliasScore = aliases.reduce((max, alias) => Math.max(max, similarity(clientCol, alias)), 0)
-      if (aliasScore > score) {
-        score = Math.min(aliasScore + 0.05, 1)
-        reason = 'Semantic alias match'
-      }
-
-      // sample data sniffing
-      const samples = sampleRows.slice(0, 5).map(r => (r[clientCol] || '').toLowerCase())
-      if (targetCol === 'GST' && samples.some(v => /\d{2}[a-z]{5}\d{4}[a-z]\d[z][a-z]/i.test(v))) {
-        score = Math.max(score, 0.97)
-        reason = 'GST format detected in sample data'
-      }
-      if (targetCol === 'Email' && samples.some(v => /@/.test(v))) {
-        score = Math.max(score, 0.95)
-        reason = 'Email format detected in sample data'
-      }
-      if (targetCol === 'Phone' && samples.some(v => /^\+?\d[\d\s\-]{8,}$/.test(v))) {
-        score = Math.max(score, 0.92)
-        reason = 'Phone number pattern detected in sample data'
-      }
-
-      if (score > bestScore) {
-        bestScore = score
-        bestTarget = targetCol
-        bestReason = reason
-      }
-    }
-
-    // add slight randomisation for realism
-    const jitter = (Math.random() - 0.5) * 0.04
-    const confidence = Math.min(Math.max(Math.round((bestScore + jitter) * 100), 1), 100)
-
-    const status: ColumnMapping['status'] =
-      bestScore < 0.4 ? 'skipped' :
-      confidence < 90 ? 'pending' : 'auto'
-
-    return {
-      clientCol,
-      targetCol: bestScore < 0.4 ? null : bestTarget,
-      confidence,
-      reason: bestScore < 0.4 ? 'No matching target column found' : bestReason,
-      status,
-    }
-  })
-}
-
-function transformData(
-  rows: Record<string, string>[],
-  mappings: ColumnMapping[],
-  targetHeaders: string[]
-): Record<string, string>[] {
-  return rows.map(row => {
-    const out: Record<string, string> = {}
-    for (const th of targetHeaders) {
-      out[th] = ''
-    }
-    for (const m of mappings) {
-      if (m.targetCol && m.status !== 'skipped' && m.clientCol in row) {
-        out[m.targetCol] = row[m.clientCol] ?? ''
-      }
-    }
-    return out
-  })
-}
 
 // ─── File Parsing ─────────────────────────────────────────────────────────────
 
@@ -353,6 +238,10 @@ export default function App() {
     ? transformData(clientFile.rows, mappings, template.headers)
     : []
 
+  const transformedTargets = new Set(
+    mappings.filter(m => m.transformation && m.targetCol && m.status !== 'skipped').map(m => m.targetCol!),
+  )
+
   const handleDownload = () => {
     if (!template) return
     const ws = XLSX.utils.json_to_sheet(transformedRows)
@@ -552,7 +441,7 @@ export default function App() {
             <div className="space-y-2">
               {mappings.map((m, i) => (
                 <MappingRow
-                  key={m.clientCol}
+                  key={`${m.clientCol}-${m.targetCol ?? 'none'}-${i}`}
                   mapping={m}
                   targetHeaders={template?.headers || []}
                   sampleValue={clientFile?.rows[0]?.[m.clientCol] ?? ''}
@@ -614,7 +503,7 @@ export default function App() {
                     {transformedRows.slice(0, 50).map((row, ri) => (
                       <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
                         {template.headers.map(h => (
-                          <td key={h} className={`px-4 py-2.5 text-slate-700 font-mono text-xs whitespace-nowrap border-b border-slate-100 ${row[h] ? '' : 'text-slate-300 italic'}`}>
+                          <td key={h} className={`px-4 py-2.5 text-slate-700 font-mono text-xs whitespace-nowrap border-b border-slate-100 ${row[h] ? '' : 'text-slate-300 italic'} ${transformedTargets.has(h) ? 'bg-violet-50/80 text-violet-900' : ''}`}>
                             {row[h] || '—'}
                           </td>
                         ))}
@@ -626,6 +515,12 @@ export default function App() {
               {transformedRows.length > 50 && (
                 <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
                   Showing 50 of {transformedRows.length} rows
+                </div>
+              )}
+              {transformedTargets.size > 0 && (
+                <div className="px-4 py-2 bg-violet-50 border-t border-violet-100 text-xs text-violet-700 flex items-center gap-2">
+                  <span className="w-3 h-3 rounded bg-violet-100 ring-1 ring-violet-200 inline-block" />
+                  Highlighted cells were smart-extracted or normalized from composite source fields
                 </div>
               )}
             </div>
@@ -650,13 +545,18 @@ export default function App() {
             <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 text-left space-y-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Mapping Summary</p>
               {mappings.filter(m => m.status !== 'skipped').map(m => (
-                <div key={m.clientCol} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-slate-500 text-xs">{m.clientCol}</span>
-                    <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <div key={`${m.clientCol}-${m.targetCol}`} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-slate-500 text-xs truncate">{m.clientCol}</span>
+                    <svg className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
-                    <span className="font-medium text-slate-700 text-xs">{m.targetCol}</span>
+                    <span className="font-medium text-slate-700 text-xs truncate">{m.targetCol}</span>
+                    {m.transformation && m.transformation !== 'copy' && (
+                      <span className="text-[10px] text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded ring-1 ring-violet-200 flex-shrink-0">
+                        {TRANSFORM_LABELS[m.transformation]}
+                      </span>
+                    )}
                   </div>
                   <ConfBadge value={m.confidence} />
                 </div>
@@ -715,7 +615,11 @@ function MappingRow({
   onSkip: () => void
   onChangeTarget: (t: string | null) => void
 }) {
-  const { clientCol, targetCol, confidence, reason, status } = mapping
+  const { clientCol, targetCol, confidence, reason, status, transformation, isDerived } = mapping
+
+  const transformedPreview = transformation && transformation !== 'copy' && sampleValue
+    ? previewTransform(sampleValue, transformation)
+    : null
 
   const statusStyle =
     status === 'confirmed' ? 'bg-emerald-50 border-emerald-200' :
@@ -733,11 +637,16 @@ function MappingRow({
       <div className="flex items-start gap-4">
         {/* Client column */}
         <div className="w-44 flex-shrink-0">
-          <p className="text-xs text-slate-400 mb-1">Client column</p>
+          <p className="text-xs text-slate-400 mb-1">{isDerived ? 'Source field' : 'Client column'}</p>
           <span className="font-mono text-sm font-semibold text-slate-800 block truncate">{clientCol}</span>
           {sampleValue && (
             <span className="text-xs text-slate-400 font-mono mt-0.5 block truncate" title={sampleValue}>
-              eg. "{sampleValue}"
+              eg. "{sampleValue.length > 40 ? sampleValue.slice(0, 40) + '…' : sampleValue}"
+            </span>
+          )}
+          {transformedPreview && (
+            <span className="text-xs text-violet-600 font-mono mt-1 block truncate" title={transformedPreview}>
+              → "{transformedPreview}"
             </span>
           )}
         </div>
@@ -780,6 +689,11 @@ function MappingRow({
             </div>
           )}
           <p className="text-xs text-slate-400 mt-1.5">{reason}</p>
+          {transformation && transformation !== 'copy' && (
+            <span className="inline-flex mt-1.5 text-[10px] font-medium text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full ring-1 ring-violet-200">
+              {TRANSFORM_LABELS[transformation]}
+            </span>
+          )}
         </div>
 
         {/* Status badge + actions */}
