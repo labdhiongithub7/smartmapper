@@ -125,7 +125,7 @@ export function RunSummary({ metrics, exported }: { metrics: RunMetrics; exporte
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 mb-4">
         {/* KPI 7 — export summary */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Export Summary</p>
@@ -160,14 +160,14 @@ export function RunSummary({ metrics, exported }: { metrics: RunMetrics; exporte
                   className="flex items-center justify-between gap-3 text-sm"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono text-slate-500 text-xs truncate">{item.sourceColumn}</span>
+                    <span className="font-mono text-slate-500 text-xs flex-shrink-0">{item.sourceColumn}</span>
                     <svg className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
-                    <span className="font-medium text-slate-700 text-xs truncate">{item.targetColumn ?? '—'}</span>
+                    <span className="font-medium text-slate-700 text-xs flex-shrink-0">{item.targetColumn ?? '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-slate-400 max-w-56 truncate" title={item.reason}>{item.reason}</span>
+                    <span className="text-xs text-slate-400 max-w-md truncate" title={item.reason}>{item.reason}</span>
                     <ConfBadge value={item.confidence} />
                   </div>
                 </div>
