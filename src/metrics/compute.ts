@@ -82,7 +82,7 @@ export function computeRunMetrics(input: ComputeInput): RunMetrics {
     invalidGst: 0,
     invalidPhone: 0,
     invalidEmail: 0,
-    missingValues: 0,
+    emptyMappedValues: 0,
     total: 0,
   }
   const targetKind = new Map<string, 'gst' | 'phone' | 'email'>()
@@ -99,7 +99,7 @@ export function computeRunMetrics(input: ComputeInput): RunMetrics {
     for (const t of targets) {
       const value = (row[t] ?? '').trim()
       if (!value) {
-        validation.missingValues++
+        validation.emptyMappedValues++
         continue
       }
       const kind = targetKind.get(t)
@@ -108,8 +108,9 @@ export function computeRunMetrics(input: ComputeInput): RunMetrics {
       else if (kind === 'email' && !EMAIL.test(value.toLowerCase())) validation.invalidEmail++
     }
   }
-  validation.total =
-    validation.invalidGst + validation.invalidPhone + validation.invalidEmail + validation.missingValues
+  // total = format errors only. Empty mapped cells are reported separately
+  // and never substituted for a missing-mandatory count.
+  validation.total = validation.invalidGst + validation.invalidPhone + validation.invalidEmail
 
   // KPI 6 — transformation summary.
   const fieldsDerived = active.filter(m => m.isDerived).length
