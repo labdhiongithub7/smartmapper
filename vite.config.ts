@@ -5,8 +5,8 @@ import path from 'node:path'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig({
-  // GitHub Pages serves this project site from /smartmapper/
-  base: '/smartmapper/',
+  // Relative base works on GitHub Pages (/smartmapper/) and Vercel (root)
+  base: './',
   plugins: [
     react(),
     tailwindcss(),
