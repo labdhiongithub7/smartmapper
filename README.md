@@ -10,6 +10,12 @@ SmartMapper automatically maps messy vendor/client spreadsheet columns onto a fi
 - **Guided 5-step workflow** — Template → Client File → AI Mapping → Preview → Export
 - **CSV & Excel support** — import and export `.csv`, `.xlsx`, `.xls`
 
+## Live Demo
+
+https://labdhiongithub7.github.io/smartmapper/
+
+Deployed automatically from `main` via GitHub Pages (see `.github/workflows/pages.yml`).
+
 ## Tech Stack
 
 - React 19 + Vite
@@ -31,4 +37,3 @@ Build for production:
 ```bash
 pnpm build
 ```
-
