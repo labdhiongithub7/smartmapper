@@ -12,9 +12,11 @@ SmartMapper automatically maps messy vendor/client spreadsheet columns onto a fi
 
 ## Live Demo
 
-https://labdhiongithub7.github.io/smartmapper/
+Production (Vercel): https://smartmapper.vercel.app/
 
-Deployed automatically from `main` via GitHub Pages (see `.github/workflows/pages.yml`).
+GitHub Pages mirror: https://labdhiongithub7.github.io/smartmapper/
+
+Both deploy automatically from `main` (Pages via `.github/workflows/pages.yml`). The build uses a relative base path, so it works at a domain root and under `/smartmapper/`.
 
 ## Tech Stack
 
