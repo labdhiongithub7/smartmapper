@@ -577,6 +577,8 @@ export default function App() {
               {transformedRows.length} rows · {template?.headers.length} columns
             </p>
 
+          </div>
+
             {/* Run Summary KPI dashboard (read-only) */}
             <RunSummary
               metrics={computeRunMetrics({
@@ -590,7 +592,6 @@ export default function App() {
               exported={rowsExported != null}
             />
 
-          </div>
 
             {/* Mapping summary */}
           <div className="max-w-lg mx-auto text-center">
