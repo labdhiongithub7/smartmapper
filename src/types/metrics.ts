@@ -39,7 +39,7 @@ export interface RunMetrics {
   finishedAt: number | null
   /** finishedAt - startedAt, null until the first successful export. */
   tatMs: number | null
-  /** Active mappings never touched by the user ÷ all client columns, × 100. */
+  /** Client columns mapped without any manual change ÷ all client columns, × 100. */
   autoMappingRate: number | null
   /** Confidence buckets over active mappings: High > 90. */
   confidenceHigh: number
