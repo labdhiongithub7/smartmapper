@@ -5,6 +5,8 @@ import path from 'node:path'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig({
+  // GitHub Pages serves this project site from /smartmapper/
+  base: '/smartmapper/',
   plugins: [
     react(),
     tailwindcss(),
