@@ -37,10 +37,22 @@ export function computeRunMetrics(input: ComputeInput): RunMetrics {
       ? Math.max(0, input.finishedAt - input.startedAt)
       : null
 
-  // KPI 2 — auto-mapping rate: untouched active mappings ÷ all client columns.
-  const autoMapped = active.filter(m => !m.userEdited).length
-  const autoMappingRate =
-    input.mappings.length === 0 ? null : (autoMapped / input.mappings.length) * 100
+  // KPI 2 — auto-mapping rate, per client column: a column counts when it has
+  // an active mapping and none of its mappings were touched by the user.
+  // (A single client column can carry several mappings, e.g. one direct copy
+  // plus derived City/State/Pincode extractions — it still counts once.)
+  const byCol = new Map<string, RunMapping[]>()
+  for (const m of input.mappings) {
+    const list = byCol.get(m.clientCol) || []
+    list.push(m)
+    byCol.set(m.clientCol, list)
+  }
+  let autoCols = 0
+  for (const list of byCol.values()) {
+    const hasActive = list.some(m => m.targetCol && m.status !== 'skipped')
+    if (hasActive && list.every(m => !m.userEdited)) autoCols++
+  }
+  const autoMappingRate = byCol.size === 0 ? null : (autoCols / byCol.size) * 100
 
   // KPI 3 — confidence distribution. Boundaries per spec: High > 90,
   // Medium 50–90 (90 is Medium), Low < 50.
