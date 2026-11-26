@@ -157,7 +157,7 @@ export function RunSummary({ metrics, exported }: { metrics: RunMetrics; exporte
               {metrics.reviewQueue.map(item => (
                 <div
                   key={`${item.sourceColumn}-${item.targetColumn ?? 'none'}`}
-                  className="flex items-center justify-between gap-3 text-sm"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 text-sm"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-mono text-slate-500 text-xs flex-shrink-0">{item.sourceColumn}</span>
@@ -167,7 +167,7 @@ export function RunSummary({ metrics, exported }: { metrics: RunMetrics; exporte
                     <span className="font-medium text-slate-700 text-xs flex-shrink-0">{item.targetColumn ?? '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-slate-400 max-w-md truncate" title={item.reason}>{item.reason}</span>
+                    <span className="text-xs text-slate-400 max-w-full sm:max-w-md truncate" title={item.reason}>{item.reason}</span>
                     <ConfBadge value={item.confidence} />
                   </div>
                 </div>
