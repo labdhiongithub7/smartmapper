@@ -18,10 +18,11 @@ export interface ValidationBreakdown {
   invalidPhone: number
   invalidEmail: number
   /**
-   * Empty cells in mapped target columns. The template format carries no
-   * mandatory-field markers, so every mapped column is counted equally.
+   * Empty cells in mapped target columns, reported separately from validation
+   * errors. Not labeled "missing mandatory": the template format carries no
+   * required-field markers, so a mandatory-field rule is unavailable.
    */
-  missingValues: number
+  emptyMappedValues: number
   total: number
 }
 
