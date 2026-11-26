@@ -2,6 +2,8 @@ import { useState, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 import { aiMap, transformData, previewTransform, TRANSFORM_LABELS, type ColumnMapping } from './transforms'
+import { computeRunMetrics } from './metrics/compute'
+import { RunSummary } from './components/RunSummary'
 
 interface ParsedFile {
   headers: string[]
@@ -169,6 +171,23 @@ export default function App() {
   // saved learned mappings per client file name
   const [learnedMappings, setLearnedMappings] = useState<Record<string, Record<string, string>>>({})
 
+  // ── Run reporting state (read-only; feeds the Run Summary dashboard) ──
+  // Actual human changes by client column. Confirming an unchanged suggestion
+  // is not an edit, so it is never recorded here.
+  const [editedCols, setEditedCols] = useState<Set<string>>(new Set())
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null)
+  const [runFinishedAt, setRunFinishedAt] = useState<number | null>(null)
+  const [rowsExported, setRowsExported] = useState<number | null>(null)
+
+  const markEdited = (clientCol: string) => {
+    setEditedCols(prev => {
+      if (prev.has(clientCol)) return prev
+      const next = new Set(prev)
+      next.add(clientCol)
+      return next
+    })
+  }
+
   const handleTemplateUpload = useCallback(async (file: File) => {
     try {
       setError(null)
@@ -193,6 +212,11 @@ export default function App() {
     if (!template || !clientFile) return
     setLoading(true)
     setError(null)
+    // Start a fresh run: TAT restarts and prior export/edit records are cleared.
+    setRunStartedAt(Date.now())
+    setRunFinishedAt(null)
+    setRowsExported(null)
+    setEditedCols(new Set())
     await new Promise(r => setTimeout(r, 1400)) // simulate processing
     const raw = aiMap(clientFile.headers, template.headers, clientFile.rows)
     // apply any learned corrections for this client
@@ -228,6 +252,7 @@ export default function App() {
   }
 
   const skipMapping = (idx: number) => {
+    markEdited(mappings[idx].clientCol)
     updateMapping(idx, { status: 'skipped', targetCol: null })
   }
 
@@ -244,10 +269,17 @@ export default function App() {
 
   const handleDownload = () => {
     if (!template) return
-    const ws = XLSX.utils.json_to_sheet(transformedRows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Standardized')
-    XLSX.writeFile(wb, `standardized_${clientFile?.name ?? 'output'}.xlsx`)
+    try {
+      const ws = XLSX.utils.json_to_sheet(transformedRows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Standardized')
+      XLSX.writeFile(wb, `standardized_${clientFile?.name ?? 'output'}.xlsx`)
+      // TAT ends at the first successful export; a failed download never counts as finished.
+      setRunFinishedAt(prev => prev ?? Date.now())
+      setRowsExported(transformedRows.length)
+    } catch {
+      setError('Export failed while writing the file. Please try downloading again.')
+    }
   }
 
   const IconTemplate = (
@@ -447,7 +479,10 @@ export default function App() {
                   sampleValue={clientFile?.rows[0]?.[m.clientCol] ?? ''}
                   onConfirm={() => confirmMapping(i)}
                   onSkip={() => skipMapping(i)}
-                  onChangeTarget={t => updateMapping(i, { targetCol: t, status: 'pending' })}
+                  onChangeTarget={t => {
+                    markEdited(m.clientCol)
+                    updateMapping(i, { targetCol: t, status: 'pending' })
+                  }}
                 />
               ))}
             </div>
@@ -541,6 +576,19 @@ export default function App() {
               {transformedRows.length} rows · {template?.headers.length} columns
             </p>
 
+            {/* Run Summary KPI dashboard (read-only) */}
+            <RunSummary
+              metrics={computeRunMetrics({
+                startedAt: runStartedAt,
+                finishedAt: runFinishedAt,
+                mappings: mappings.map(m => ({ ...m, userEdited: editedCols.has(m.clientCol) })),
+                rowsProcessed: clientFile?.rows.length ?? 0,
+                rowsExported,
+                transformedRows,
+              })}
+              exported={rowsExported != null}
+            />
+
             {/* Mapping summary */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 text-left space-y-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Mapping Summary</p>
@@ -586,6 +634,10 @@ export default function App() {
                 setClientFile(null)
                 setMappings([])
                 setError(null)
+                setEditedCols(new Set())
+                setRunStartedAt(null)
+                setRunFinishedAt(null)
+                setRowsExported(null)
               }}
               className="mt-4 w-full text-slate-500 hover:text-slate-700 text-sm font-medium py-3 transition-colors"
             >
