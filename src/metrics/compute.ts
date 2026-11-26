@@ -113,7 +113,12 @@ export function computeRunMetrics(input: ComputeInput): RunMetrics {
   validation.total = validation.invalidGst + validation.invalidPhone + validation.invalidEmail
 
   // KPI 6 — transformation summary.
-  const fieldsDerived = active.filter(m => m.isDerived).length
+  // A field is derived when it was generated from a composite source column:
+  // either an extra mapping the engine added (isDerived) or the column's own
+  // mapping carrying an extract_* transformation (e.g. City from Full Address).
+  const fieldsDerived = active.filter(
+    m => m.isDerived || (m.transformation ?? '').startsWith('extract_'),
+  ).length
   const fieldsNormalized = active.filter(
     m =>
       m.transformation === 'normalize_phone' ||
