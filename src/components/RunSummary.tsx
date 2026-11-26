@@ -167,7 +167,7 @@ export function RunSummary({ metrics, exported }: { metrics: RunMetrics; exporte
                     <span className="font-medium text-slate-700 text-xs flex-shrink-0">{item.targetColumn ?? '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-slate-400 max-w-full sm:max-w-md truncate" title={item.reason}>{item.reason}</span>
+                    <span className="text-xs text-slate-400">{item.reason}</span>
                     <ConfBadge value={item.confidence} />
                   </div>
                 </div>
